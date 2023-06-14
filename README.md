@@ -1,0 +1,1 @@
+This is me following along @jspruance Web3 dApp tutorial for a [blockchain lottery](https://github.com/jspruance/block-explorer-tutorials/tree/main/apps/Lottery) using NextJS framework and Truffle Suite.
