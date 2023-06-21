@@ -14,12 +14,20 @@ export default function Home() {
   const [lcContract, setLcContract] = useState()
   const [lotteryPot, setLotteryPot] = useState()
   const [lotteryPlayers, setPlayers] = useState([])
+  const [lotteryHistory, setLotteryHistory] = useState([])
+  const [lotteryId, setLotteryId] = useState()
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   useEffect(() => {
+    updateState()
+  }, [lcContract])
+
+  const updateState = () => {
     if (lcContract) getPot()
     if (lcContract) getPlayers()
-  }, [lcContract])
+    if (lcContract) getLotteryId()
+  }
 
   const getPot = async () => {
     const pot = await lcContract.methods.getBalance().call()
@@ -31,6 +39,24 @@ export default function Home() {
     setPlayers(players)
   }
 
+  const getHistory = async (id) => {
+    for (let i = parseInt(id); i > 0; i--) {
+      console.log('get history')
+      const winnerAddress = await lcContract.methods.lotteryHistory(i).call()
+      const historyObj = {}
+      historyObj.id = i
+      historyObj.address = winnerAddress
+      setLotteryHistory(lotteryHistory => [...lotteryHistory, historyObj])
+    }
+  }
+
+  const getLotteryId = async () => {
+    const lotteryId = await lcContract.methods.lotteryId().call()
+    setLotteryId(lotteryId)
+    await getHistory(lotteryId)
+    console.log(JSON.stringify(lotteryHistory))
+  }
+
   const enterLotteryHandler = async () => {
     try {
       await lcContract.methods.enter().send({
@@ -39,12 +65,29 @@ export default function Home() {
         gas: 300000,
         gasPrice: null
       })
+      updateState()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const pickWinnerHandler = async () => {
+    try {
+      await lcContract.methods.payWinner().send({
+        from: address,
+        gas: 300000,
+        gasPrice: null
+      })
+      const winnerAddress = lotteryHistory[lotteryId - 1].address
+      setSuccessMsg(`Winner is ${winnerAddress }`)
+      updateState()
     } catch (err) {
       setError(err.message)
     }
   }
 
   const connectWalletHandler = async () => {
+    setError('')
     /* Check if MetaMask is installed */
     if (typeof window !== "undefined"  && typeof window.ethereum !== "undefined") {
       try {
@@ -62,6 +105,12 @@ export default function Home() {
         /* create local contract copy */
         const lc = lotteryContract(web3)
         setLcContract(lc)
+
+        window.ethereum.on('accountsChanged', async () => {
+          const accounts = await web3.eth.getAccounts()
+          /* set account 1 in React state */
+          setAddress(accounts[0])
+        })
       } catch (err) {
         setError(err.message)
       }
@@ -99,11 +148,16 @@ export default function Home() {
                 </section>
                 <section className="mt-6">
                   <p><b>Admin only:</b> Pick winner</p>
-                  <button className="button is-primary is-large is-light mt-3">Pick winner</button>
+                  <button onClick={pickWinnerHandler} className="button is-primary is-large is-light mt-3">Pick winner</button>
                 </section>
                 <section>
-                  <div className="container has-text-danger">
+                  <div className="container has-text-danger mt-6">
                     <p>{error}</p>
+                  </div>
+                </section>
+                <section>
+                  <div className="container has-text-success mt-6">
+                    <p>{successMsg}</p>
                   </div>
                 </section>
               </div>
@@ -113,14 +167,20 @@ export default function Home() {
                     <div className="card-content">
                       <div className="content">
                         <h2>Lottery History</h2>
-                        <div className="history-entry">
-                          <div>Lottery #1 winner:</div>
-                          <div>
-                            <a href="https://sepolia.etherscan.io/address/0xd84ab8643a260903ab0f3a9a501bb253101bb069" target="_blank">
-                              0xd84aB8643a260903ab0F3A9a501bb253101bB069
-                            </a>
-                          </div>
-                        </div>
+                        {
+                          (lotteryHistory && lotteryHistory.length > 0) && lotteryHistory.map(item => {
+                            if (lotteryId != item.id) { 
+                              return <div className="history-entry mt-3" key={item.id}> 
+                              <div>Lottery #{item.id} winner:</div>
+                                <div>
+                                  <a href={`https://sepolia.etherscan.io/address/${item.address}`} target="_blank">
+                                    {item.address}
+                                  </a>
+                                </div>
+                              </div>
+                            }
+                          })
+                        }
                       </div>
                     </div>
                   </div>
